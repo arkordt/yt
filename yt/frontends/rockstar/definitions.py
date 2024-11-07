@@ -81,6 +81,7 @@ halo_dt: list[HaloDataType] = [
     ("kin_to_pot", np.float32),
     ("m_pe_b", np.float32, (1, 100)),
     ("m_pe_d", np.float32, (1, 100)),
+    ("halfmass_radius", np.float32, (2, 100)),
     ("num_p", np.int64),
     ("num_child_particles", np.int64),
     ("p_start", np.int64),
@@ -90,12 +91,6 @@ halo_dt: list[HaloDataType] = [
     ("min_pos_err", np.float32),
     ("min_vel_err", np.float32),
     ("min_bulkvel_err", np.float32),
-    ("type", np.int32, (2, 100)),
-    ("sm", np.float32, (2, 100)),
-    ("gas", np.float32, (2, 100)),
-    ("bh", np.float32, (2, 100)),
-    ("peak_density", np.float32, (2, 100)),
-    ("av_density", np.float32, (2, 100)),
 ]
 
 # using typing.Any here in lieu of numpy.typing.DTypeLike (should be backported for numpy < 1.20)
