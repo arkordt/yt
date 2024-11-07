@@ -69,6 +69,21 @@ class ArepoHDF5Dataset(GadgetHDF5Dataset):
             valid = False
         return valid
 
+    def _get_config(self):
+        handle = h5py.File(self.parameter_filename, mode="r")
+        cvals = {}
+        cvals.update((str(k), v) for k, v in handle["/Config"].attrs.items())
+        handle.close()
+
+        # ensure that 1-element arrays are reduced to scalars
+        updated_cvals = {}
+        for cvalname, value in cvals.items():
+            if isinstance(value, np.ndarray) and value.size == 1:
+                mylog.info("Reducing single-element array %s to scalar.", cvalname)
+                updated_cvals[cvalname] = value.item()
+        cvals.update(updated_cvals)
+        return cvals
+
     def _get_uvals(self):
         handle = h5py.File(self.parameter_filename, mode="r")
         uvals = {}

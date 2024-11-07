@@ -3,6 +3,7 @@ from yt.fields.species_fields import add_species_field_by_fraction, setup_specie
 from yt.frontends.gadget.api import GadgetFieldInfo
 from yt.utilities.chemical_formulas import ChemicalFormula
 from yt.utilities.physical_ratios import _primordial_mass_fraction
+from yt.utilities.periodic_table import periodic_table
 
 metal_elements = ["He", "C", "N", "O", "Ne", "Mg", "Si", "Fe"]
 
@@ -214,3 +215,95 @@ class ArepoFieldInfo(GadgetFieldInfo):
                 sampling_type="local",
                 units=self.ds.unit_system["pressure"],
             )
+
+        if (ptype, "ChemicalAbundances") in self.field_list:
+
+            # test if the SGChem chmistry module with six species was used
+            cvals = self.ds._get_config()
+            if "SGCHEM" in cvals \
+                and int(cvals.get("CHEMISTRYNETWORK", -1)) == 1:
+
+                # This chemistry module assumes conservation of the total H, D,
+                # and He mass of all ionisation states each. The columnes in 
+                # ("PartType0", "ChemicalAbundances") are abundances by number
+                # relative to the total H number density.
+
+                requires_gas_alias = []
+                def _create_H_dependent_fraction(species, chem_abundance_idx):
+                    formula = ChemicalFormula(species)
+                    print(formula.elements, formula.charge, formula.weight)
+                    def _fraction(field, data):
+                        r = data["PartType0", "ChemicalAbundances"][:,chem_abundance_idx]
+                        r *= formula.weight / periodic_table["H"].weight
+                        r *= _primordial_mass_fraction["H"]
+                        return r
+                    return _fraction
+
+                species = ["H2_p0", "H_p1", "D_p1", "HD_p0", "He_p1", "He_p2"]
+                for i, s in enumerate(species):
+                    self.add_field(
+                        (ptype, f"{s}_fraction"),
+                        _create_H_dependent_fraction(s, i),
+                        sampling_type="particle",
+                        units=self.ds.unit_system["dimensionless"],
+                    )
+                    requires_gas_alias.append((ptype, f"{s}_fraction"))
+
+                def _h_fraction(field, data):
+                    data._debug()
+                    h_fraction = _primordial_mass_fraction["H"]
+                    h_fraction -= data[ptype, "H2_p0_fraction"]
+                    h_fraction -= data[ptype, "H_p1_fraction"]
+                    h_fraction -= \
+                        periodic_table["H"].weight / ChemicalFormula("HD").weight * \
+                        data[ptype, "HD_p0_fraction"]
+                    return h_fraction
+
+                self.add_field(
+                    (ptype, "H_fraction"),
+                    _h_fraction,
+                    sampling_type="particle",
+                    units=self.ds.unit_system["dimensionless"],
+                )
+                requires_gas_alias.append((ptype, "H_p0_fraction"))
+
+                def _d_fraction(field, data):
+                    d_fraction = self.ds.parameters["DeutAbund"] \
+                    * periodic_table["D"].weight / periodic_table["H"].weight
+                    d_fraction -= data[ptype, "D_p1_fraction"]
+                    d_fraction -= \
+                        periodic_table["D"].weight / ChemicalFormula("HD").weight * \
+                        data[ptype, "HD_p0_fraction"]
+                    return d_fraction
+                
+                self.add_field(
+                    (ptype, "D_p0_fraction"),
+                    _d_fraction,
+                    sampling_type="particle",
+                    units=self.ds.unit_system["dimensionless"],
+                )
+                requires_gas_alias.append((ptype, "D_p0_fraction"))
+
+                def _he_fraction(field, data):
+                    he_fraction = _primordial_mass_fraction["He"]
+                    he_fraction -= data[ptype, "He_p1_fraction"]
+                    he_fraction -= data[ptype, "He_p2_fraction"]
+                    return he_fraction
+                
+                self.add_field(
+                    (ptype, "He_p0_fraction"),
+                    _he_fraction,
+                    sampling_type="particle",
+                    units=self.ds.unit_system["dimensionless"],
+                )
+                requires_gas_alias.append((ptype, "He_p0_fraction"))
+
+                species += ["H_p0", "D_p0", "He_p0"]
+                self.species_names += species
+                for s in species:
+                    requires_gas_alias.extend(
+                        add_species_field_by_fraction(self, ptype, s)
+                    )
+
+                for pt, field in requires_gas_alias:
+                    self.alias(("gas", field), (pt, field))
