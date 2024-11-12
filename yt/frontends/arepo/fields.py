@@ -231,7 +231,6 @@ class ArepoFieldInfo(GadgetFieldInfo):
                 requires_gas_alias = []
                 def _create_H_dependent_fraction(species, chem_abundance_idx):
                     formula = ChemicalFormula(species)
-                    print(formula.elements, formula.charge, formula.weight)
                     def _fraction(field, data):
                         r = data["PartType0", "ChemicalAbundances"][:,chem_abundance_idx]
                         r *= formula.weight / periodic_table["H"].weight
@@ -250,7 +249,6 @@ class ArepoFieldInfo(GadgetFieldInfo):
                     requires_gas_alias.append((ptype, f"{s}_fraction"))
 
                 def _h_fraction(field, data):
-                    data._debug()
                     h_fraction = _primordial_mass_fraction["H"]
                     h_fraction -= data[ptype, "H2_p0_fraction"]
                     h_fraction -= data[ptype, "H_p1_fraction"]
@@ -260,7 +258,7 @@ class ArepoFieldInfo(GadgetFieldInfo):
                     return h_fraction
 
                 self.add_field(
-                    (ptype, "H_fraction"),
+                    (ptype, "H_p0_fraction"),
                     _h_fraction,
                     sampling_type="particle",
                     units=self.ds.unit_system["dimensionless"],
